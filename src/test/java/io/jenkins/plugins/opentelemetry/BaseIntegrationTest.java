@@ -315,25 +315,35 @@ public class BaseIntegrationTest {
     }
 
     protected void assertNodeMetadata(Tree<SpanDataWrapper> spans, String jobName, boolean withNode) throws Exception {
-        Optional<Tree.Node<SpanDataWrapper>> shell = spans.breadthFirstSearchNodes(
-                node -> jobName.equals(node.getData().spanData.getName()));
-        MatcherAssert.assertThat(shell, CoreMatchers.is(CoreMatchers.notNullValue()));
-        Attributes attributes = shell.get().getData().spanData.getAttributes();
+        for (String spanName : List.of(
+                jobName,
+                ExtendedJenkinsAttributes.JENKINS_JOB_SPAN_PHASE_START_NAME,
+                ExtendedJenkinsAttributes.JENKINS_JOB_SPAN_PHASE_RUN_NAME)) {
+            Optional<Tree.Node<SpanDataWrapper>> spanNode = spans.breadthFirstSearchNodes(
+                    node -> spanName.equals(node.getData().spanData.getName()));
+            MatcherAssert.assertThat("span '" + spanName + "' not found", spanNode.isPresent(), CoreMatchers.is(true));
+            Attributes attributes = spanNode.get().getData().spanData.getAttributes();
 
-        if (withNode) {
+            if (withNode) {
+                MatcherAssert.assertThat(
+                        "JENKINS_STEP_AGENT_LABEL on '" + spanName + "'",
+                        attributes.get(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL),
+                        CoreMatchers.not(Matchers.emptyOrNullString()));
+            } else {
+                MatcherAssert.assertThat(
+                        "JENKINS_STEP_AGENT_LABEL on '" + spanName + "'",
+                        attributes.get(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL),
+                        CoreMatchers.is(Matchers.emptyOrNullString()));
+            }
             MatcherAssert.assertThat(
-                    attributes.get(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL),
+                    "CI_PIPELINE_AGENT_NAME on '" + spanName + "'",
+                    attributes.get(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_NAME),
                     CoreMatchers.not(Matchers.emptyOrNullString()));
-        } else {
             MatcherAssert.assertThat(
-                    attributes.get(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL),
-                    CoreMatchers.is(Matchers.emptyOrNullString()));
+                    "CI_PIPELINE_AGENT_ID on '" + spanName + "'",
+                    attributes.get(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_ID),
+                    Matchers.notNullValue());
         }
-        MatcherAssert.assertThat(
-                attributes.get(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_NAME),
-                CoreMatchers.not(Matchers.emptyOrNullString()));
-        MatcherAssert.assertThat(
-                attributes.get(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_ID), Matchers.notNullValue());
     }
 
     protected void assertBuildStepMetadata(Tree<SpanDataWrapper> spans, String stepName, String pluginName)

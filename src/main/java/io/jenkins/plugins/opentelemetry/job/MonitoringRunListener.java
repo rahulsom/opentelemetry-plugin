@@ -17,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.model.AbstractBuild;
+import hudson.model.AbstractProject;
 import hudson.model.Cause;
 import hudson.model.Node;
 import hudson.model.ParameterValue;
@@ -255,6 +256,20 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
                     culpritIds.stream().map(User::getId).collect(Collectors.toList()));
         }
 
+        // AGENT — for AbstractBuild (freestyle/maven/matrix) the executor is already assigned at this point
+        if (run instanceof AbstractBuild<?, ?> abstractBuild
+                && run.getParent() instanceof AbstractProject<?, ?> project) {
+            var node = abstractBuild.getBuiltOn();
+            if (node != null) {
+                rootSpanBuilder.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_ID, node.getNodeName());
+                rootSpanBuilder.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_NAME, node.getDisplayName());
+            }
+            var agentLabel = agentLabelFor(project);
+            if (agentLabel != null) {
+                rootSpanBuilder.setAttribute(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL, agentLabel);
+            }
+        }
+
         // PARAMETERS
         ParametersAction parameters = run.getAction(ParametersAction.class);
         if (parameters != null) {
@@ -357,6 +372,10 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
                     .setParent(Context.current().with(rootSpan))
                     .startSpan();
             LOGGER.log(Level.FINE, () -> run.getFullDisplayName() + " - begin " + OtelUtils.toDebugString(startSpan));
+            if (run instanceof AbstractBuild<?, ?> abstractBuild
+                    && run.getParent() instanceof AbstractProject<?, ?> project) {
+                setAgentAttributes(startSpan, project, abstractBuild.getBuiltOn());
+            }
 
             this.getTraceService().putRunPhaseSpan(run, startSpan);
             try (final Scope startSpanScope = startSpan.makeCurrent()) {
@@ -373,6 +392,10 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
                     .setParent(Context.current())
                     .startSpan();
             LOGGER.log(Level.FINE, () -> run.getFullDisplayName() + " - begin " + OtelUtils.toDebugString(runSpan));
+            if (run instanceof AbstractBuild<?, ?> abstractBuild
+                    && run.getParent() instanceof AbstractProject<?, ?> project) {
+                setAgentAttributes(runSpan, project, abstractBuild.getBuiltOn());
+            }
             try (Scope scope = runSpan.makeCurrent()) {
                 this.getTraceService().putRunPhaseSpan(run, runSpan);
                 this.runStartedCounter.add(1);
@@ -441,15 +464,6 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
                     parentSpan.setStatus(StatusCode.UNSET, runResult.toString());
                 }
             }
-            // NODE
-            if (run instanceof AbstractBuild) {
-                Node node = ((AbstractBuild<?, ?>) run).getBuiltOn();
-                if (node != null) {
-                    parentSpan.setAttribute(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL, node.getLabelString());
-                    parentSpan.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_ID, node.getNodeName());
-                    parentSpan.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_NAME, node.getDisplayName());
-                }
-            }
             parentSpan.end();
             LOGGER.log(Level.FINE, () -> run.getFullDisplayName() + " - end " + OtelUtils.toDebugString(parentSpan));
 
@@ -494,5 +508,27 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
     @NonNull
     protected List<RunHandler> getRunHandlers() {
         return Preconditions.checkNotNull(this.runHandlers);
+    }
+
+    /**
+     * Returns the configured label expression for a freestyle/maven/matrix build — what the job
+     * <em>requires</em>, matching how pipeline records the label from the {@code agent} directive.
+     * Returns null when the job has no "Restrict where this project can be run" setting.
+     */
+    @Nullable
+    private static String agentLabelFor(@NonNull AbstractProject<?, ?> project) {
+        String labelStr = project.getAssignedLabelString();
+        return (labelStr != null && !labelStr.isBlank()) ? labelStr : null;
+    }
+
+    private static void setAgentAttributes(@NonNull Span span, @NonNull AbstractProject<?, ?> project, @Nullable Node node) {
+        if (node != null) {
+            span.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_ID, node.getNodeName());
+            span.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_AGENT_NAME, node.getDisplayName());
+        }
+        var label = agentLabelFor(project);
+        if (label != null) {
+            span.setAttribute(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL, label);
+        }
     }
 }
