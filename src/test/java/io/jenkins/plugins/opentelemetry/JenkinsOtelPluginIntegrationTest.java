@@ -87,7 +87,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
         checkChainOfSpans(
                 spans, "shell-2", "Stage: ze-stage2", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run", rootSpanName);
         checkChainOfSpans(spans, "Phase: Finalise", rootSpanName);
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(10L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(11L));
 
         // FIXME REPAIR METRICS TESTS
         /*
@@ -159,7 +159,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
             jenkinsRule.assertBuildStatus(Result.SUCCESS, pipeline.scheduleBuild2(0));
 
             final Tree<SpanDataWrapper> spans = getBuildTrace();
-            MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(8L));
+            MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(9L));
         }
     }
 
@@ -196,7 +196,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: foo",
                 "Phase: Run");
         checkChainOfSpans(spans, "Phase: Finalise", rootSpanName);
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(7L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(8L));
 
         Optional<Tree.Node<SpanDataWrapper>> executorNodeAllocation =
                 spans.breadthFirstSearchNodes(node -> (ExtendedJenkinsAttributes.AGENT_ALLOCATION_UI)
@@ -262,7 +262,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 spans, "shell-1", "Stage: ze-stage1", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run", rootSpanName);
         checkChainOfSpans(
                 spans, "shell-2", "Stage: ze-stage2", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run", rootSpanName);
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(10L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(11L));
 
         Optional<Tree.Node<SpanDataWrapper>> stageNode = spans.breadthFirstSearchNodes(
                 node -> "Stage: ze-stage1".equals(node.getData().spanData.getName()));
@@ -300,7 +300,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
         final Tree<SpanDataWrapper> spans = getBuildTrace();
         checkChainOfSpans(spans, "shell-1", "Stage: ze-stage1", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run");
         checkChainOfSpans(spans, "shell-2", "Stage: ze-stage2", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(11L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(12L));
 
         Optional<Tree.Node<SpanDataWrapper>> shellNode = spans.breadthFirstSearchNodes(
                 node -> "shell-1".equals(node.getData().spanData.getName()));
@@ -337,7 +337,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
         checkChainOfSpans(spans, "shell-1", "Stage: ze-stage1", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run");
         checkChainOfSpans(spans, "shell-2", "Stage: ze-stage2", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run");
         checkChainOfSpans(spans, "error", "Stage: ze-stage2", ExtendedJenkinsAttributes.AGENT_UI, "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(11L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(12L));
     }
 
     @Test
@@ -379,7 +379,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: trigger-child-pipeline",
                 ExtendedJenkinsAttributes.AGENT_UI,
                 "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(15L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(17L));
     }
 
     @Test
@@ -425,7 +425,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: ze-parallel-stage",
                 ExtendedJenkinsAttributes.AGENT_UI,
                 "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(13L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(14L));
 
         Optional<Tree.Node<SpanDataWrapper>> branchNode =
                 spans.breadthFirstSearchNodes(node -> "Parallel branch: parallelBranch1"
@@ -492,7 +492,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: foo",
                 ExtendedJenkinsAttributes.AGENT_UI,
                 "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(8L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(9L));
 
         Optional<Tree.Node<SpanDataWrapper>> gitNode =
                 spans.breadthFirstSearchNodes(node -> "git: github.com/octocat/Hello-World"
@@ -530,7 +530,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: foo",
                 ExtendedJenkinsAttributes.AGENT_UI,
                 "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(8L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(9L));
 
         Optional<Tree.Node<SpanDataWrapper>> checkoutNode =
                 spans.breadthFirstSearchNodes(node -> "checkout: github.com/octocat/Hello-World"
@@ -569,7 +569,7 @@ public class JenkinsOtelPluginIntegrationTest extends BaseIntegrationTest {
                 "Stage: foo",
                 ExtendedJenkinsAttributes.AGENT_UI,
                 "Phase: Run");
-        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(8L));
+        MatcherAssert.assertThat(spans.cardinality(), CoreMatchers.is(9L));
 
         Optional<Tree.Node<SpanDataWrapper>> checkoutNode =
                 spans.breadthFirstSearchNodes(node -> "checkout: github.com/octocat/Hello-World"
