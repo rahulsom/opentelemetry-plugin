@@ -30,6 +30,8 @@ import io.jenkins.plugins.opentelemetry.api.OpenTelemetryLifecycleListener;
 import io.jenkins.plugins.opentelemetry.job.cause.CauseHandler;
 import io.jenkins.plugins.opentelemetry.job.opentelemetry.OtelContextAwareAbstractRunListener;
 import io.jenkins.plugins.opentelemetry.job.runhandler.RunHandler;
+import io.jenkins.plugins.opentelemetry.queue.QueueItemMonitoringAction;
+import io.jenkins.plugins.opentelemetry.queue.QueuePhaseRecord;
 import io.jenkins.plugins.opentelemetry.queue.RemoteSpanAction;
 import io.jenkins.plugins.opentelemetry.semconv.ConfigurationKey;
 import io.jenkins.plugins.opentelemetry.semconv.ExtendedJenkinsAttributes;
@@ -302,6 +304,15 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
                 .collect(Collectors.toList());
         rootSpanBuilder.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_RUN_CAUSE, causesDescriptions);
 
+        // QUEUE PHASES — extend root span start time back to when the build first entered the queue.
+        // Phases are appended in chronological order (see QueuePhaseRecord), so get(0) is the earliest.
+        List<QueuePhaseRecord> queuePhases = Optional.ofNullable(run.getAction(QueueItemMonitoringAction.class))
+                .map(QueueItemMonitoringAction::getPhases)
+                .orElse(Collections.emptyList());
+        if (!queuePhases.isEmpty()) {
+            rootSpanBuilder.setStartTimestamp(queuePhases.get(0).startMillis(), TimeUnit.MILLISECONDS);
+        }
+
         Optional<Cause> optCause = run.getCauses().stream().findFirst();
         optCause.ifPresent(cause -> {
             if (cause instanceof Cause.UpstreamCause upstreamCause) {
@@ -351,10 +362,27 @@ public class MonitoringRunListener extends OtelContextAwareAbstractRunListener
             LOGGER.log(
                     Level.FINE, () -> run.getFullDisplayName() + " - begin root " + OtelUtils.toDebugString(rootSpan));
 
+            // CREATE QUEUE PHASE SPANS as historical children of the root span
+            for (var phase : queuePhases) {
+                Span queuePhaseSpan = getTracer()
+                        .spanBuilder(phase.phaseName())
+                        .setParent(Context.current()) // rootSpan is already current via rootSpanScope
+                        .setStartTimestamp(phase.startMillis(), TimeUnit.MILLISECONDS)
+                        .startSpan();
+                if (phase.reason() != null && !phase.reason().isBlank()) {
+                    queuePhaseSpan.setAttribute(ExtendedJenkinsAttributes.CI_PIPELINE_RUN_QUEUE_REASON, phase.reason());
+                }
+                if (phase.label() != null && !phase.label().isBlank()) {
+                    queuePhaseSpan.setAttribute(ExtendedJenkinsAttributes.JENKINS_STEP_AGENT_LABEL, phase.label());
+                }
+                queuePhaseSpan.end(phase.endMillis(), TimeUnit.MILLISECONDS);
+                LOGGER.log(Level.FINE, () -> run.getFullDisplayName() + " - queue phase span " + phase.phaseName());
+            }
+
             // START initialize span
             Span startSpan = getTracer()
                     .spanBuilder(ExtendedJenkinsAttributes.JENKINS_JOB_SPAN_PHASE_START_NAME)
-                    .setParent(Context.current().with(rootSpan))
+                    .setParent(Context.current()) // rootSpan is already current via rootSpanScope
                     .startSpan();
             LOGGER.log(Level.FINE, () -> run.getFullDisplayName() + " - begin " + OtelUtils.toDebugString(startSpan));
 
